@@ -4,6 +4,54 @@ import type { RequestHandler } from './request.js';
 import type { SiteOperations } from './site.js';
 
 /**
+ * Convert a dotted-quad IPv4 string to a 32-bit unsigned integer.
+ * Returns undefined for malformed input.
+ */
+function ipv4ToInt(ip: string): number | undefined {
+    const parts = ip.trim().split('.');
+    if (parts.length !== 4) {
+        return undefined;
+    }
+    let value = 0;
+    for (const part of parts) {
+        if (!/^\d{1,3}$/.test(part)) {
+            return undefined;
+        }
+        const octet = Number(part);
+        if (octet > 255) {
+            return undefined;
+        }
+        value = value * 256 + octet;
+    }
+    return value >>> 0;
+}
+
+/**
+ * Test whether an IPv4 address falls inside a CIDR range (e.g. "192.168.128.1/22").
+ */
+function ipv4InCidr(ip: string, cidr: string): boolean {
+    const [network, prefixStr] = cidr.split('/');
+    const prefix = Number(prefixStr);
+    const ipInt = ipv4ToInt(ip);
+    const netInt = ipv4ToInt(network ?? '');
+    if (ipInt === undefined || netInt === undefined || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) {
+        return false;
+    }
+    if (prefix === 0) {
+        return true;
+    }
+    const mask = prefix === 32 ? 0xffffffff : (0xffffffff << (32 - prefix)) >>> 0;
+    return (ipInt & mask) === (netInt & mask);
+}
+
+/**
+ * Normalize a MAC address to the Omada canonical form AA-BB-CC-11-22-33.
+ */
+function normalizeMac(mac: string): string {
+    return mac.trim().toUpperCase().replace(/:/g, '-');
+}
+
+/**
  * Network-related operations for the Omada API.
  * Covers internet, LAN, WLAN, firewall, and port forwarding configurations.
  */
@@ -523,6 +571,65 @@ export class NetworkOperations {
         const resolvedSiteId = this.site.resolveSiteId(siteId);
         const path = this.buildPath(`/sites/${encodeURIComponent(resolvedSiteId)}/setting/service/dhcp`);
         const response = await this.request.get<OmadaApiResponse<unknown>>(path, { page, pageSize }, customHeaders);
+        return this.request.ensureSuccess(response);
+    }
+
+    /**
+     * Resolve the LAN network id whose subnet contains the given IPv4 address.
+     * Returns undefined when no configured LAN network matches.
+     */
+    private async resolveNetIdForIp(ip: string, siteId: string, customHeaders?: CustomHeaders): Promise<string | undefined> {
+        const networks = (await this.getLanNetworkList(siteId, customHeaders)) as Array<Record<string, unknown>>;
+        for (const net of networks) {
+            const subnet = typeof net?.gatewaySubnet === 'string' ? net.gatewaySubnet : undefined;
+            const id = typeof net?.id === 'string' ? net.id : undefined;
+            if (subnet && id && ipv4InCidr(ip, subnet)) {
+                return id;
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Create a DHCP reservation (fixed IP) mapping a client MAC to an IP on the site gateway.
+     * When netId is omitted it is resolved automatically from the LAN network containing ip.
+     * OperationId: createDhcpReservation
+     */
+    public async createDhcpReservation(
+        mac: string,
+        ip: string,
+        description?: string,
+        netId?: string,
+        confirmConflict = true,
+        siteId?: string,
+        customHeaders?: CustomHeaders
+    ): Promise<unknown> {
+        const resolvedSiteId = this.site.resolveSiteId(siteId);
+        const normalizedMac = normalizeMac(mac);
+
+        let resolvedNetId = netId;
+        if (!resolvedNetId) {
+            resolvedNetId = await this.resolveNetIdForIp(ip, resolvedSiteId, customHeaders);
+            if (!resolvedNetId) {
+                throw new Error(
+                    `No LAN network on site ${resolvedSiteId} contains IP ${ip}; create the network first or pass netId explicitly.`
+                );
+            }
+        }
+
+        const path = this.buildPath(`/sites/${encodeURIComponent(resolvedSiteId)}/setting/service/dhcp`);
+        const body: Record<string, unknown> = {
+            mac: normalizedMac,
+            ip,
+            netId: resolvedNetId,
+            status: true,
+            confirmConflict,
+        };
+        if (description) {
+            body.description = description;
+        }
+
+        const response = await this.request.post<OmadaApiResponse<unknown>>(path, body, customHeaders);
         return this.request.ensureSuccess(response);
     }
 

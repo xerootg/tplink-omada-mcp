@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ToolCategory, ToolPermission } from '../config.js';
 import type { OmadaClient } from '../omadaClient/index.js';
 import { logger } from '../utils/logger.js';
+import { registerCreateDhcpReservationTool } from './createDhcpReservation.js';
 import { registerDisableClientRateLimitTool } from './disableClientRateLimit.js';
 import { registerGetAccessControlTool } from './getAccessControl.js';
 import { registerGetAclConfigTypeSettingTool } from './getAclConfigTypeSetting.js';
@@ -478,6 +479,7 @@ const TOOL_REGISTRY: ToolEntry[] = [
     { fn: registerGetInterfaceLanNetworkTool, category: 'network-lan', permission: 'read' },
     { fn: registerGetInterfaceLanNetworkV2Tool, category: 'network-lan', permission: 'read' },
     { fn: registerGetDhcpReservationGridTool, category: 'network-lan', permission: 'read' },
+    { fn: registerCreateDhcpReservationTool, category: 'network-lan', permission: 'write' },
     { fn: registerGetIpMacBindingGeneralSettingTool, category: 'network-lan', permission: 'read' },
     { fn: registerGetGridIpMacBindingTool, category: 'network-lan', permission: 'read' },
     { fn: registerGetDnsCacheSettingTool, category: 'network-lan', permission: 'read' },

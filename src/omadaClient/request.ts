@@ -31,6 +31,13 @@ export class RequestHandler {
     }
 
     /**
+     * Make a POST request to the Omada API.
+     */
+    public async post<T>(path: string, data?: unknown, customHeaders?: CustomHeaders): Promise<T> {
+        return await this.request<T>({ method: 'POST', url: path, data }, true, customHeaders);
+    }
+
+    /**
      * Make an arbitrary HTTP request to the Omada API.
      */
     public async request<T>(config: AxiosRequestConfig, retry = true, customHeaders?: CustomHeaders): Promise<T> {

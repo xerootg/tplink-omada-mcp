@@ -850,6 +850,17 @@ export class OmadaClient {
     public async getDhcpReservationGrid(page: number, pageSize: number, siteId?: string, customHeaders?: CustomHeaders): Promise<unknown> {
         return await this.networkOps.getDhcpReservationGrid(page, pageSize, siteId, customHeaders);
     }
+    public async createDhcpReservation(
+        mac: string,
+        ip: string,
+        description?: string,
+        netId?: string,
+        confirmConflict?: boolean,
+        siteId?: string,
+        customHeaders?: CustomHeaders
+    ): Promise<unknown> {
+        return await this.networkOps.createDhcpReservation(mac, ip, description, netId, confirmConflict, siteId, customHeaders);
+    }
     public async getGridIpMacBinding(page: number, pageSize: number, siteId?: string, customHeaders?: CustomHeaders): Promise<unknown> {
         return await this.networkOps.getGridIpMacBinding(page, pageSize, siteId, customHeaders);
     }
